@@ -1,0 +1,67 @@
+---
+
+- name: Adding lwp key
+  apt_key:
+            url: "http://claudyus.github.io/LXC-Web-Panel/claudyus.gpg.key"
+            state: present
+
+- name: Adding lwp repo to sources list
+  apt_repository:
+                  repo: "deb http://claudyus.github.io/LXC-Web-Panel/ debian/"
+                  state: present
+                  filename: lwp
+
+- name: install packages
+  apt:
+       name: "{{ item }}"
+       state: latest
+       install_recommends: false
+       update_cache: yes
+       cache_valid_time: 300
+       allow_unauthenticated: yes
+  with_items: "{{ packages }}"
+
+- name: Copy lwp sample config to /etc/lwp
+  copy:
+        src: "/etc/lwp/lwp.example.conf"
+        dest: "/etc/lwp/lwp.conf"
+        remote_src: true
+
+- name: Making lwp to listen on localhost
+  lineinfile:
+              path: "/etc/lwp/lwp.conf"
+              regexp: "^address"
+              line: "address = 127.0.0.1"
+  notify: "restart lwp"
+
+- name: Set Timezone
+  timezone:
+            name: "{{ set_timezone }}"
+
+- name: Set sysctl parameters
+  sysctl:
+          name: "{{ item.key }}"
+          value: "{{ item.value }}"
+          sysctl_set: yes
+          state: present
+          reload: yes
+  with_dict: "{{ set_config }}"
+
+- name: Set Pam limits
+  pam_limits:
+              domain: "{{ user }}"
+              limit_type: "{{ item.key }}"
+              limit_item: nofile
+              value: "{{ item.value }}"
+  with_dict: "{{ set_pam }}"
+
+- name: Set Hostname
+  hostname:
+            name: "{{ set_host }}"
+
+- name: Setup alternate SSH port
+  lineinfile:
+              dest: "/etc/ssh/sshd_config"
+              regexp: "^Port"
+              line: "Port {{ set_port }}"
+  notify: "restart ssh"
